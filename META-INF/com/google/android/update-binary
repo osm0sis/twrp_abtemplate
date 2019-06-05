@@ -1,0 +1,69 @@
+#!/sbin/sh
+# TWRP A/B Installer Backend
+# by osm0sis, Dees_Troy and topjohnwu
+
+OUTFD=/proc/self/fd/$2;
+ZIPFILE="$3";
+
+ui_print() { $BOOTMODE && echo "$1" || echo -e "ui_print $1\nui_print" >> $OUTFD; }
+abort() { ui_print "$1"; exit 1; }
+
+# detect Magisk Manager/booted flashing
+ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false;
+$BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
+
+ui_print "########################################";
+ui_print "#    TWRP installer for A/B devices    #";
+ui_print "########################################";
+ui_print " ";
+
+# /dev/tmp is safe for both booted and recovery installs
+tmp=/dev/tmp/twrp-install;
+# target partition without the slot suffix
+target=/dev/block/bootdevice/by-name/boot;
+
+ui_print "Unpacking the installer...";
+ui_print " ";
+rm -rf $tmp;
+mkdir -p $tmp;
+unzip -o "$ZIPFILE" -d $tmp || abort "Failed to extract zip!";
+
+cd $tmp;
+tool=$tmp/magiskboot;
+recoverycpio=`(ls ramdisk-twrp.cpio || ls ramdisk-recovery.cpio) 2>/dev/null`;
+test "$recoverycpio" || abort "No TWRP ramdisk cpio found!";
+
+chmod 755 $tool;
+
+for slot in a b; do
+  ui_print "Running boot image patcher on slot $slot...";
+  slot=_$slot;
+  dd bs=1048576 if=$target$slot of=boot.img;
+  $tool unpack -h boot.img;
+
+  # kernel string want_initramfs -> skip_initramfs (Magisk)
+  $tool hexpatch kernel 77616E745F696E697472616D6673 736B69705F696E697472616D6673;
+  # kernel string trip_initramfs -> skip_initramfs (SuperSU)
+  $tool hexpatch kernel 747269705F696E697472616D6673 736B69705F696E697472616D6673;
+
+  # boot.img header cmdline remove skip_override (flar2 patch)
+  sed -i "s|$(grep '^cmdline=' header | cut -d= -f2-)|$(grep '^cmdline=' header | cut -d= -f2- | sed -e 's/skip_override//' -e 's/  */ /g' -e 's/[ \t]*$//')|" header;
+
+  cp -f $recoverycpio ramdisk.cpio;
+  $tool repack boot.img;
+  cat new-boot.img /dev/zero > $target$slot 2>/dev/null || true;
+
+  $tool cleanup;
+  rm -f new-boot.img;
+done;
+
+ui_print " ";
+ui_print "Boot image patching complete!";
+
+cd /;
+rm -rf /dev/tmp;
+
+ui_print " ";
+ui_print "Done installing TWRP!";
+ui_print " ";
+ui_print "*** NOTE: You are now unrooted! ***";
