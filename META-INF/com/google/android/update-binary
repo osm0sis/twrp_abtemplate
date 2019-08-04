@@ -30,7 +30,7 @@ unzip -o "$ZIPFILE" -d $tmp || abort "Failed to extract zip!";
 
 cd $tmp;
 tool=$tmp/magiskboot;
-recoverycpio=`(ls ramdisk-twrp.cpio || ls ramdisk-recovery.cpio) 2>/dev/null`;
+recoverycpio=`(ls ramdisk-twrp.cpio || ls ramdisk-recovery.cpio || ls ramdisk-recovery.cpio.lzma) 2>/dev/null`;
 test "$recoverycpio" || abort "No TWRP ramdisk cpio found!";
 
 chmod 755 $tool;
