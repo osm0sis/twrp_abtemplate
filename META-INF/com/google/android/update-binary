@@ -42,35 +42,43 @@ unzip -o "$ZIPFILE" -d $tmp || abort "Failed to extract zip!";
 
 cd $tmp;
 recoverycpio=`(ls ramdisk-twrp.cpio || ls ramdisk-recovery.cpio) 2>/dev/null`;
-[ "$recoverycpio" ] || abort "No TWRP ramdisk cpio found in zip!";
+recoveryimg=`(ls twrp*.img || ls TWRP*.img || ls recovery.img) 2>/dev/null`;
+[ "$recoverycpio" ] || [ "$recoveryimg" ] || abort "No TWRP ramdisk/image found in zip!";
 
 tool=$tmp/magiskboot;
 chmod 755 $tool;
 
 for slot in _a _b; do
-  ui_print "Running image patcher on $name$slot...";
-  dd bs=1048576 if=$target$slot of=boot.img || abort "Failed to dump image!";
-  $tool unpack -h boot.img || abort "Failed to unpack image!";
+  if [ "$recoverycpio" ]; then
+    ui_print "Running image patcher on $name$slot...";
+    dd bs=1048576 if=$target$slot of=boot.img || abort "Failed to dump image!";
+    $tool unpack -h boot.img || abort "Failed to unpack image!";
 
-  # kernel string want_initramfs -> skip_initramfs (Magisk)
-  $tool hexpatch kernel 77616E745F696E697472616D6673 736B69705F696E697472616D6673;
-  # kernel string trip_initramfs -> skip_initramfs (SuperSU)
-  $tool hexpatch kernel 747269705F696E697472616D6673 736B69705F696E697472616D6673;
+    # kernel string want_initramfs -> skip_initramfs (Magisk)
+    $tool hexpatch kernel 77616E745F696E697472616D6673 736B69705F696E697472616D6673;
+    # kernel string trip_initramfs -> skip_initramfs (SuperSU)
+    $tool hexpatch kernel 747269705F696E697472616D6673 736B69705F696E697472616D6673;
 
-  # boot.img header cmdline remove skip_override (flar2 patch)
-  sed -i "s|$(grep '^cmdline=' header | cut -d= -f2-)|$(grep '^cmdline=' header | cut -d= -f2- | sed -e 's/skip_override//' -e 's/  */ /g' -e 's/[ \t]*$//')|" header;
+    # boot.img header cmdline remove skip_override (flar2 patch)
+    sed -i "s|$(grep '^cmdline=' header | cut -d= -f2-)|$(grep '^cmdline=' header | cut -d= -f2- | sed -e 's/skip_override//' -e 's/  */ /g' -e 's/[ \t]*$//')|" header;
 
-  cp -f $recoverycpio ramdisk.cpio;
-  $tool repack boot.img || abort "Failed to repack image!";
+    cp -f $recoverycpio ramdisk.cpio;
+    $tool repack boot.img || abort "Failed to repack image!";
+    $tool cleanup;
+  else
+    ui_print "Flashing image to $name$slot...";
+    cp -f $recoveryimg new-boot.img;
+  fi;
+
   blockdev --setrw $target$slot;
   cat new-boot.img /dev/zero > $target$slot 2>/dev/null || true;
-
-  $tool cleanup;
   rm -f new-boot.img;
 done;
 
-ui_print " ";
-ui_print "Image patching complete!";
+if [ "$recoverycpio" ]; then
+  ui_print " ";
+  ui_print "Image patching complete!";
+fi;
 
 cd /;
 rm -rf /dev/tmp;
