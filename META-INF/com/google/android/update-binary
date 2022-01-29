@@ -12,9 +12,9 @@ ui_print() {
     echo -e "ui_print $1\nui_print" >> $OUTFD;
   fi;
 }
-abort() { ui_print "$1"; exit 1; }
+abort() { ui_print " "; ui_print "$1"; exit 1; }
 
-# detect Magisk Manager/booted flashing
+# detect Magisk app/booted flashing
 BOOTMODE=false;
 ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
 $BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
@@ -35,7 +35,6 @@ fi;
 name=$(basename $target);
 
 ui_print "Unpacking the installer...";
-ui_print " ";
 rm -rf $tmp;
 mkdir -p $tmp;
 unzip -o "$ZIPFILE" -d $tmp || abort "Failed to extract zip!";
@@ -48,6 +47,7 @@ recoveryimg=`(ls twrp*.img || ls TWRP*.img || ls recovery.img) 2>/dev/null`;
 tool=$tmp/magiskboot;
 chmod 755 $tool;
 
+ui_print " ";
 for slot in _a _b; do
   if [ "$recoverycpio" ]; then
     ui_print "Running image patcher on $name$slot...";
