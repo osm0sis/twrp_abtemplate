@@ -44,8 +44,14 @@ recoverycpio=`(ls ramdisk-twrp.cpio || ls ramdisk-recovery.cpio) 2>/dev/null`;
 recoveryimg=`(ls twrp*.img || ls TWRP*.img || ls recovery.img) 2>/dev/null`;
 [ "$recoverycpio" ] || [ "$recoveryimg" ] || abort "No TWRP ramdisk/image found in zip!";
 
-tool=$tmp/magiskboot;
-chmod 755 $tool;
+chmod 755 magiskboot-arm*;
+if ./magiskboot-arm64 cleanup 2>/dev/null; then
+  mv -f magiskboot-arm64 magiskboot;
+else
+  mv -f magiskboot-arm magiskboot;
+fi;
+rm -f magiskboot-arm*;
+tool=./magiskboot;
 
 ui_print " ";
 for slot in _a _b; do
