@@ -20,18 +20,15 @@ ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
 $BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true;
 
 ui_print "########################################";
-ui_print "#    TWRP installer for A/B devices    #";
+ui_print "#    Kernel Flasher For Xiaomi Sky     #";
 ui_print "########################################";
 ui_print " ";
 
 # /dev/tmp is safe for both booted and recovery installs
-tmp=/dev/tmp/twrp-install;
+tmp=/dev/tmp/kernel-install;
+
 # target partition without the slot suffix
-if [ -e /dev/block/bootdevice/by-name/recovery_b ]; then
-  target=/dev/block/bootdevice/by-name/recovery;
-else
   target=/dev/block/bootdevice/by-name/boot;
-fi;
 name=$(basename $target);
 
 ui_print "Unpacking the installer...";
@@ -40,40 +37,13 @@ mkdir -p $tmp;
 unzip -o "$ZIPFILE" -d $tmp || abort "Failed to extract zip!";
 
 cd $tmp;
-recoverycpio=`(ls ramdisk-twrp.cpio || ls ramdisk-recovery.cpio) 2>/dev/null`;
-recoveryimg=`(ls twrp*.img || ls TWRP*.img || ls recovery.img) 2>/dev/null`;
-[ "$recoverycpio" ] || [ "$recoveryimg" ] || abort "No TWRP ramdisk/image found in zip!";
-
-chmod 755 magiskboot-arm*;
-if ./magiskboot-arm64 cleanup 2>/dev/null; then
-  mv -f magiskboot-arm64 magiskboot;
-else
-  mv -f magiskboot-arm magiskboot;
-fi;
-rm -f magiskboot-arm*;
-tool=./magiskboot;
+bootimg=`(ls boot*.img || ls Boot.img|| ls BOOT.img) 2>/dev/null`;
+[ "$bootimg" ] || abort "No boot image found in zip!";
 
 ui_print " ";
 for slot in _a _b; do
-  if [ "$recoverycpio" ]; then
-    ui_print "Running image patcher on $name$slot...";
-    dd bs=1048576 if=$target$slot of=boot.img || abort "Failed to dump image!";
-    $tool unpack -h boot.img || abort "Failed to unpack image!";
-
-    # kernel string want_initramfs -> skip_initramfs (Magisk)
-    $tool hexpatch kernel 77616E745F696E697472616D6673 736B69705F696E697472616D6673;
-    # kernel string trip_initramfs -> skip_initramfs (SuperSU)
-    $tool hexpatch kernel 747269705F696E697472616D6673 736B69705F696E697472616D6673;
-
-    # boot.img header cmdline remove skip_override (flar2 patch)
-    sed -i "s|$(grep '^cmdline=' header | cut -d= -f2-)|$(grep '^cmdline=' header | cut -d= -f2- | sed -e 's/skip_override//' -e 's/  */ /g' -e 's/[ \t]*$//')|" header;
-
-    cp -f $recoverycpio ramdisk.cpio;
-    $tool repack boot.img || abort "Failed to repack image!";
-    $tool cleanup;
-  else
     ui_print "Flashing image to $name$slot...";
-    cp -f $recoveryimg new-boot.img;
+    cp -f $bootimg new-boot.img;
   fi;
 
   blockdev --setrw $target$slot;
@@ -81,17 +51,8 @@ for slot in _a _b; do
   rm -f new-boot.img;
 done;
 
-if [ "$recoverycpio" ]; then
-  ui_print " ";
-  ui_print "Image patching complete!";
-fi;
-
 cd /;
 rm -rf /dev/tmp;
 
 ui_print " ";
-ui_print "Done installing TWRP!";
-if [ "$name" != "recovery" ]; then
-  ui_print " ";
-  ui_print "*** NOTE: You are now unrooted! ***";
-fi;
+ui_print "Done installing Boot image!";
